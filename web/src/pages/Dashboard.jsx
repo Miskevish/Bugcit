@@ -1,13 +1,19 @@
+// src/pages/DashboardPage.jsx
 import React, { useMemo, useState, useEffect } from "react";
 import { store } from "../data/events";
 import catImg from "../assets/bugcit.png";
 
+/* ================== helpers de fechas ================== */
+function ymd(dateLike) {
+  const d = new Date(dateLike);
+  const utc = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return utc.toISOString().slice(0, 10);
+}
 function useMonth(date) {
   const y = date.getFullYear();
   const m = date.getMonth();
   const first = new Date(y, m, 1);
-  const startDow = first.getDay(); // 0-6 (Sun)
-  // construimos 6 filas x 7 (clásico)
+  const startDow = first.getDay();
   const days = [];
   let d = new Date(y, m, 1 - startDow);
   for (let i = 0; i < 42; i++) {
@@ -16,14 +22,36 @@ function useMonth(date) {
   }
   return { y, m, days };
 }
+/* ========= fallback para leer eventos si el store no los expone ========= */
+function loadEventsFallback() {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      const raw = localStorage.getItem(k);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) continue;
+      const list = parsed
+        .map((e, idx) => {
+          const start = e.start || e.date;
+          const title = e.title || e.name || e.titulo;
+          if (!start || !title) return null;
+          return { id: e.id ?? `${k}-${idx}`, title, date: ymd(start) };
+        })
+        .filter(Boolean);
+      if (list.length) return list;
+    }
+  } catch {}
+  return [];
+}
 
 export default function DashboardPage() {
-  const [today] = useState(new Date());
   const [cursor, setCursor] = useState(new Date());
+
+  // === datos del store
   const [notes, setNotes] = useState(store.getNotes());
   const [tasks, setTasks] = useState(store.getTasks());
   const [learning, setLearning] = useState(store.getLearning());
-  const [noteText, setNoteText] = useState("");
 
   useEffect(() => {
     store.setNotes(notes);
@@ -35,16 +63,48 @@ export default function DashboardPage() {
     store.setLearning(learning);
   }, [learning]);
 
+  // === eventos para el calendario del dashboard
+  const [events, setEvents] = useState(
+    typeof store.getEvents === "function"
+      ? store.getEvents()
+      : loadEventsFallback()
+  );
+  useEffect(() => {
+    const reload = () => {
+      setEvents(
+        typeof store.getEvents === "function"
+          ? store.getEvents()
+          : loadEventsFallback()
+      );
+    };
+    window.addEventListener("focus", reload);
+    window.addEventListener("storage", reload);
+    return () => {
+      window.removeEventListener("focus", reload);
+      window.removeEventListener("storage", reload);
+    };
+  }, []);
+
+  // agrupar eventos por día
+  const eventsByDay = useMemo(() => {
+    const map = new Map();
+    for (const ev of events || []) {
+      const key = ymd(ev.date || ev.start || ev.when);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(ev);
+    }
+    return map;
+  }, [events]);
+
   const { m, y, days } = useMonth(cursor);
   const ymLabel = cursor.toLocaleDateString("es-AR", {
     month: "long",
     year: "numeric",
   });
 
-  // Simple timer de “sesión de aprendizaje”
-  const [timer, setTimer] = useState(0); // segundos
+  // === timer aprendizaje
+  const [timer, setTimer] = useState(0);
   const [running, setRunning] = useState(false);
-
   useEffect(() => {
     if (!running) return;
     const id = setInterval(() => setTimer((s) => s + 1), 1000);
@@ -58,7 +118,6 @@ export default function DashboardPage() {
 
   const finishTimer = () => {
     if (timer <= 0) return;
-    // guarda como “Sesión rápida”
     const hours = +(timer / 3600).toFixed(2);
     const entry = {
       id: crypto.randomUUID(),
@@ -66,10 +125,26 @@ export default function DashboardPage() {
       date: new Date().toISOString(),
       hours,
     };
-    const next = [...learning, entry];
-    setLearning(next);
+    setLearning([...learning, entry]);
     setTimer(0);
     setRunning(false);
+  };
+
+  // navegación al calendario completo
+  const goToCalendarDate = (dateStr) => {
+    window.location.href = `/calendar?date=${encodeURIComponent(dateStr)}`;
+  };
+
+  // ===== Notas (estado del textarea)
+  const [noteText, setNoteText] = useState("");
+
+  // ===== Tareas (nuevo título controlado)
+  const [newTask, setNewTask] = useState("");
+  const handleAddTask = () => {
+    const v = newTask.trim();
+    if (!v) return;
+    setTasks([{ id: crypto.randomUUID(), title: v, done: false }, ...tasks]);
+    setNewTask("");
   };
 
   return (
@@ -117,17 +192,44 @@ export default function DashboardPage() {
                   <div key={d}>{d}</div>
                 ))}
               </div>
+
               <div className="days">
                 {days.map((d, idx) => {
                   const inMonth = d.getMonth() === m;
-                  const n = d.getDate();
+                  const dateStr = ymd(d);
+                  const dayEvents = eventsByDay.get(dateStr) || [];
                   return (
                     <div
                       key={idx}
                       className="day"
-                      style={{ opacity: inMonth ? 1 : 0.35 }}
+                      style={{ opacity: inMonth ? 1 : 0.35, cursor: "pointer" }}
+                      onClick={() => goToCalendarDate(dateStr)}
+                      title={inMonth ? "Crear/Ver eventos" : undefined}
                     >
-                      <div className="num">{n}</div>
+                      <div className="num">{d.getDate()}</div>
+                      <div style={{ display: "grid", gap: 6, marginTop: 18 }}>
+                        {dayEvents.slice(0, 2).map((ev) => (
+                          <span
+                            key={ev.id}
+                            className="badge purple"
+                            style={{ justifySelf: "start" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              goToCalendarDate(dateStr);
+                            }}
+                            title={ev.title}
+                          >
+                            {ev.title.length > 14
+                              ? ev.title.slice(0, 14) + "…"
+                              : ev.title}
+                          </span>
+                        ))}
+                        {dayEvents.length > 2 && (
+                          <small style={{ opacity: 0.8 }}>
+                            +{dayEvents.length - 2} más
+                          </small>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -148,7 +250,7 @@ export default function DashboardPage() {
 
       {/* fila inferior: notas + tareas + aprendizaje */}
       <div className="row grid-3" style={{ marginTop: 16 }}>
-        {/* Notas */}
+        {/* ===== Notas ===== */}
         <div className="card-bugcit">
           <div className="card-head">Notas</div>
           <div className="card-body">
@@ -183,12 +285,34 @@ export default function DashboardPage() {
                 <div style={{ opacity: 0.6 }}>Sin notas</div>
               )}
               {notes.map((n) => (
-                <div key={n.id} className="item">
-                  <div className="item-left">
-                    <div style={{ fontWeight: 800 }}>{n.text}</div>
-                    <small>{new Date(n.date).toLocaleDateString()}</small>
+                <div
+                  key={n.id}
+                  className="item"
+                  style={{ alignItems: "flex-start" }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontWeight: 800,
+                        whiteSpace: "pre-wrap",
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
+                        display: "-webkit-box",
+                        WebkitBoxOrient: "vertical",
+                        WebkitLineClamp: 2,
+                        overflow: "hidden",
+                        lineHeight: 1.35,
+                      }}
+                      title={n.text}
+                    >
+                      {n.text}
+                    </div>
+                    <small style={{ opacity: 0.8 }}>
+                      {new Date(n.date).toLocaleDateString()}
+                    </small>
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
+
+                  <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                     <button
                       className="btn ghost"
                       onClick={() => {
@@ -215,20 +339,42 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
+
+            <div className="mt-12">
+              <a className="btn ghost" href="/notes">
+                Abrir página de Notas →
+              </a>
+            </div>
           </div>
         </div>
 
-        {/* Tareas (checklist) */}
+        {/* ===== Tareas (cards responsivas) ===== */}
         <div className="card-bugcit">
           <div className="card-head">Tareas</div>
           <div className="card-body">
-            <div className="list">
-              {tasks.length === 0 && (
-                <div style={{ opacity: 0.6 }}>Sin tareas</div>
-              )}
+            {/* Formulario para crear */}
+            <div className="task-new inline" style={{ marginBottom: 12 }}>
+              <input
+                className="input"
+                placeholder="Nueva tarea…"
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleAddTask();
+                }}
+              />
+              <button className="btn brand" onClick={handleAddTask}>
+                Añadir
+              </button>
+            </div>
+
+            {tasks.length === 0 && <div className="text-muted">Sin tareas</div>}
+
+            {/* Grid de cards */}
+            <div className="task-cards">
               {tasks.map((t) => (
-                <div key={t.id} className="item">
-                  <label className="item-left">
+                <div key={t.id} className="task-card">
+                  <label className="task-check">
                     <input
                       type="checkbox"
                       checked={!!t.done}
@@ -240,15 +386,17 @@ export default function DashboardPage() {
                         )
                       }
                     />
-                    <div
+                    <span
+                      className="task-title"
                       style={{
                         textDecoration: t.done ? "line-through" : "none",
                       }}
                     >
                       {t.title}
-                    </div>
+                    </span>
                   </label>
-                  <div style={{ display: "flex", gap: 8 }}>
+
+                  <div className="task-footer">
                     <button
                       className="btn ghost"
                       onClick={() => {
@@ -276,31 +424,10 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-          <div className="card-footer" style={{ display: "flex", gap: 8 }}>
-            <input
-              className="input"
-              placeholder="Nueva tarea…"
-              id="dash-new-task"
-            />
-            <button
-              className="btn brand"
-              onClick={() => {
-                const el = document.getElementById("dash-new-task");
-                const v = (el.value || "").trim();
-                if (!v) return;
-                setTasks([
-                  { id: crypto.randomUUID(), title: v, done: false },
-                  ...tasks,
-                ]);
-                el.value = "";
-              }}
-            >
-              Añadir
-            </button>
-          </div>
+          {/* 👇 IMPORTANTE: ya NO hay otro card-footer con otro input */}
         </div>
 
-        {/* Aprendizaje quick session */}
+        {/* ===== Aprendizaje ===== */}
         <div className="card-bugcit">
           <div className="card-head">Aprendizaje</div>
           <div className="card-body">
@@ -322,6 +449,7 @@ export default function DashboardPage() {
                 Guardar
               </button>
             </div>
+
             <div className="mt-16" />
             <div style={{ fontSize: 42, fontWeight: 900, letterSpacing: 1 }}>
               {String(Math.floor(timer / 3600)).padStart(2, "0")}:

@@ -20,6 +20,7 @@
 
 *{ box-sizing:border-box; }
 html,body,#root{ height:100%; }
+html, body { overflow-x:hidden; }
 body{
   margin:0; background: radial-gradient(1200px 1200px at 10% -10%, #1b1741 0%, #0f0c24 35%, #0b0a19 60%, #090816 85%), var(--bg);
   color:var(--text); font: 500 16px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
@@ -32,6 +33,7 @@ body{
 .grid-3{ grid-template-columns: 1.1fr .9fr .9fr; }
 .grid-auto{ grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); }
 .card-bugcit{
+  width:100%;
   background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
   border:1px solid var(--line);
   border-radius: var(--radius);
@@ -55,11 +57,25 @@ body{
 }
 .textarea{ min-height:120px; padding:10px 12px; }
 
-/* ======= Sidebar + layout ======= */
-.app-wrap{ display:flex; min-height:100%; }
+img, svg, canvas, video{ max-width:100%; height:auto; }
+
+/* Mostrar/ocultar por viewport */
+.only-mobile{ display:none; }
+.only-desktop{ display:block; }
+.btn-hamburger{ display:none; }        /* oculto en desktop por defecto */
+
+/* ======= Sidebar + layout (GRID en desktop) ======= */
+.app-wrap{
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100%;
+}
 .sidebar{
-  width:260px; flex: 0 0 260px; background: linear-gradient(180deg,#141130,#0f0c24);
-  border-right:1px solid var(--line); display:flex; flex-direction:column; position: sticky; top:0; height:100vh;
+  width:260px;
+  align-self: stretch;
+  background: linear-gradient(180deg,#141130,#0f0c24);
+  border-right:1px solid var(--line);
+  display:flex; flex-direction:column;
 }
 .sidebar .brand{
   padding:24px 22px; font-weight:900; font-size:26px; letter-spacing:1.2px;
@@ -73,29 +89,56 @@ body{
 .nav-link.active{ background: var(--chip); color:#fff; border:1px solid #ffffff1a; }
 .sidebar-footer{ margin-top:auto; padding:16px 18px; border-top:1px solid var(--line); opacity:.9; }
 
-.app-content{
-  flex:1; min-width:0;
-}
-.topbar{
-  display:none;
-}
+.app-content{ min-width:0; padding:24px; }
 
-/* ======= Drawer móvil ======= */
+/* Ocultar hamburguesa en desktop */
+.topbar,
+.btn-hamburger { display: none !important; }
+
+/* ======= Breakpoint Tablet (≤ 992px) ======= */
 @media (max-width: 992px){
+  .app-wrap{ grid-template-columns: 1fr; }
+  .app-content{ padding:16px; }
+
   .sidebar{
     position: fixed; inset:0 auto 0 0; transform: translateX(-100%);
     width: 86vw; max-width: 320px; z-index: 80; transition: transform .28s ease;
+    height:100vh;
   }
   .sidebar.open{ transform: translateX(0); }
   .drawer-backdrop{
     position: fixed; inset:0; background: rgba(0,0,0,.5); backdrop-filter: blur(2px); z-index:79;
   }
+
   .topbar{
-    display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--line);
+    display:flex !important; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--line);
     background: linear-gradient(180deg, #161333 0%, #12102a 100%); position: sticky; top:0; z-index:50;
   }
-  .btn-ghost{ border:1px solid var(--line); background:transparent; color:var(--text); padding:6px 10px; border-radius:10px; }
-  .brand{ font-weight:900; letter-spacing:.5px; }
+  .btn-hamburger {
+    display: inline-flex !important; align-items: center; justify-content: center;
+  }
+
+  .grid-2, .grid-3{ grid-template-columns: 1fr; }
+}
+
+/* ======= Breakpoint Móvil (≤ 768px) ======= */
+@media (max-width: 768px){
+  .container{ padding: 16px; }
+  .card-head{ padding:14px 16px; }
+  .card-body{ padding:14px 16px; }
+  .card-footer{ padding:12px 16px; }
+  .btn{ height:36px; padding:0 12px; }
+  .input, .select{ height:38px; }
+}
+
+/* ======= Móvil chico (≤ 480px) ======= */
+@media (max-width: 480px){
+  .container{ padding:12px; }
+  .app-content{ padding:12px; }
+  .row{ gap:12px; }
+  .btn{ height:34px; padding:0 10px; font-size:14px; }
+  .card-head{ padding:12px 14px; }
+  .card-body{ padding:12px 14px; }
 }
 
 /* ======= Calendario base ======= */
@@ -115,9 +158,7 @@ body{
   background:#fff; color:#4a3bb8; font-weight:900; letter-spacing:.4px;
 }
 .grid-month .dow div{ padding:10px 8px; text-align:center; border-right:1px solid #eee2; }
-.grid-month .days{
-  display:grid; grid-template-columns: repeat(7,1fr);
-}
+.grid-month .days{ display:grid; grid-template-columns: repeat(7,1fr); }
 .day{
   min-height:102px; border-right:1px solid var(--line); border-top:1px solid var(--line);
   padding:8px; position:relative;
@@ -125,6 +166,18 @@ body{
 .day .num{ position:absolute; top:8px; right:10px; font-weight:800; color:#b9b5d6; font-size:12px; }
 .badge{ display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:800; }
 .badge.purple{ background: #6b49ff22; color:#c7b8ff; border:1px solid #7356ff66; }
+
+/* ======= Imagen del gato (no tapa clics) ======= */
+.cat-wrap{
+  display:flex; align-items:center; justify-content:center; height:100%;
+}
+.cat-wrap img{
+  width:72% !important;
+  max-width:280px !important;
+  height:auto; display:block;
+  filter: drop-shadow(0 8px 26px rgba(0,0,0,.35));
+  pointer-events:none;             /* << no captura clics */
+}
 
 /* ======= Listas ======= */
 .list{ display:flex; flex-direction:column; gap:8px; }
@@ -140,12 +193,6 @@ body{
   height:280px; position:relative; border:1px dashed var(--line); border-radius:12px; overflow:hidden;
 }
 .chart canvas{ width:100%; height:100%; }
-
-/* ======= Imagen del gato ======= */
-.cat-wrap{
-  display:flex; align-items:center; justify-content:center; height:100%;
-}
-.cat-wrap img{ width: 86%; max-width: 360px; height:auto; display:block; filter: drop-shadow(0 8px 26px rgba(0,0,0,.35)); }
 
 /* inputs en línea */
 .inline{ display:grid; grid-template-columns: 1fr 120px 130px; gap:10px; }
