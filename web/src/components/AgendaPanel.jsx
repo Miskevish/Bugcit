@@ -1,15 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { loadEvents } from "../data/events";
 
-const AgendaPanel = () => {
+export default function AgendaPanel() {
   const [events, setEvents] = useState([]);
 
   useEffect(() => {
     const sync = () =>
       setEvents(
-        loadEvents()
-          .sort((a, b) => new Date(a.start) - new Date(b.start))
-          .slice(0, 8)
+        loadEvents().sort((a, b) => new Date(a.start) - new Date(b.start))
       );
     sync();
     window.addEventListener("storage", sync);
@@ -32,17 +30,30 @@ const AgendaPanel = () => {
   };
 
   return (
-    <div>
-      <ul className="agenda-list">
-        {events.length === 0 && <div className="agenda-empty">Sin eventos</div>}
-        {events.map((e) => (
-          <li key={e.id} className={`agenda-item ${e.className || ""}`}>
-            <div className="agenda-title">{e.title}</div>
-            <div className="agenda-meta">{fmt(e.start, e.end, e.allDay)}</div>
-          </li>
-        ))}
-      </ul>
+    <div className="agenda-cards">
+      {events.length === 0 && (
+        <div className="agenda-empty" style={{ opacity: 0.7 }}>
+          Sin eventos
+        </div>
+      )}
+
+      {events.map((e) => (
+        <div
+          key={e.id}
+          className={`card-bugcit agenda-card ${e.className || ""}`}
+        >
+          <div className="card-body">
+            <div className="badge purple" style={{ marginBottom: 8 }}>
+              {fmt(e.start, e.end, e.allDay)}
+            </div>
+            <div className="agenda-card-title">{e.title}</div>
+          </div>
+          <div className="card-footer" style={{ display: "flex", gap: 8 }}>
+            <button className="btn ghost">Editar</button>
+            <button className="btn danger">Eliminar</button>
+          </div>
+        </div>
+      ))}
     </div>
   );
-};
-export default AgendaPanel;
+}
