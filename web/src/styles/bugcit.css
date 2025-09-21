@@ -1,0 +1,157 @@
+/* ======= Reset mínimo y fuentes ======= */
+:root{
+  --bg:#0e0b1f;
+  --panel:#15122b;
+  --panel-2:#191636;
+  --panel-3:#201b47;
+  --text:#f3f3ff;
+  --muted:#a7a3c7;
+  --brand:#7a3cff;
+  --brand-2:#9c6bff;
+  --ok:#35d49a;
+  --danger:#ff5b7a;
+  --warning:#ffcc66;
+  --line:rgba(255,255,255,.08);
+  --chip:#3a2b7a;
+  --chip-2:#2a215f;
+  --shadow:0 10px 24px rgba(0,0,0,.35);
+  --radius:18px;
+}
+
+*{ box-sizing:border-box; }
+html,body,#root{ height:100%; }
+body{
+  margin:0; background: radial-gradient(1200px 1200px at 10% -10%, #1b1741 0%, #0f0c24 35%, #0b0a19 60%, #090816 85%), var(--bg);
+  color:var(--text); font: 500 16px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+/* ======= Utilidades ======= */
+.container{ max-width: 1280px; margin: 0 auto; padding: 24px; }
+.row{ display: grid; gap: 16px; }
+.grid-2{ grid-template-columns: 1fr 1fr; }
+.grid-3{ grid-template-columns: 1.1fr .9fr .9fr; }
+.grid-auto{ grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); }
+.card-bugcit{
+  background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.card-head{ padding:18px 22px; border-bottom:1px solid var(--line); font-weight:800; letter-spacing:.3px; }
+.card-body{ padding:18px 22px; }
+.card-footer{ padding:16px 22px; border-top:1px solid var(--line); }
+
+.btn{
+  height:40px; padding:0 16px; border-radius:12px; border:1px solid transparent;
+  background: var(--chip); color:#fff; cursor:pointer; font-weight:700;
+}
+.btn:hover{ filter: brightness(1.06); }
+.btn.ghost{ background: transparent; border-color: var(--line); color: var(--text); }
+.btn.brand{ background: linear-gradient(90deg, var(--brand) 0%, var(--brand-2) 100%); }
+.btn.danger{ background: var(--danger); }
+.input, .select, .textarea{
+  width:100%; background: var(--panel-2); color:var(--text); border:1px solid var(--line);
+  border-radius:12px; height:40px; padding:0 12px; outline:none;
+}
+.textarea{ min-height:120px; padding:10px 12px; }
+
+/* ======= Sidebar + layout ======= */
+.app-wrap{ display:flex; min-height:100%; }
+.sidebar{
+  width:260px; flex: 0 0 260px; background: linear-gradient(180deg,#141130,#0f0c24);
+  border-right:1px solid var(--line); display:flex; flex-direction:column; position: sticky; top:0; height:100vh;
+}
+.sidebar .brand{
+  padding:24px 22px; font-weight:900; font-size:26px; letter-spacing:1.2px;
+}
+.sidebar-body{ padding: 4px 12px; display:flex; gap:6px; flex-direction:column; }
+.nav-link{
+  display:flex; gap:10px; align-items:center; padding:12px 14px; border-radius:12px; color:var(--muted);
+  text-decoration:none;
+}
+.nav-link:hover{ background: var(--chip-2); color:var(--text); }
+.nav-link.active{ background: var(--chip); color:#fff; border:1px solid #ffffff1a; }
+.sidebar-footer{ margin-top:auto; padding:16px 18px; border-top:1px solid var(--line); opacity:.9; }
+
+.app-content{
+  flex:1; min-width:0;
+}
+.topbar{
+  display:none;
+}
+
+/* ======= Drawer móvil ======= */
+@media (max-width: 992px){
+  .sidebar{
+    position: fixed; inset:0 auto 0 0; transform: translateX(-100%);
+    width: 86vw; max-width: 320px; z-index: 80; transition: transform .28s ease;
+  }
+  .sidebar.open{ transform: translateX(0); }
+  .drawer-backdrop{
+    position: fixed; inset:0; background: rgba(0,0,0,.5); backdrop-filter: blur(2px); z-index:79;
+  }
+  .topbar{
+    display:flex; align-items:center; gap:12px; padding:14px 18px; border-bottom:1px solid var(--line);
+    background: linear-gradient(180deg, #161333 0%, #12102a 100%); position: sticky; top:0; z-index:50;
+  }
+  .btn-ghost{ border:1px solid var(--line); background:transparent; color:var(--text); padding:6px 10px; border-radius:10px; }
+  .brand{ font-weight:900; letter-spacing:.5px; }
+}
+
+/* ======= Calendario base ======= */
+.calendar{
+  display:grid; grid-template-rows: auto 1fr; gap:14px;
+}
+.cal-header{
+  display:flex; align-items:center; justify-content:space-between; padding:8px 6px 0 6px;
+}
+.cal-controls{ display:flex; gap:8px; align-items:center; }
+.pill{ padding:6px 10px; background: var(--chip-2); border:1px solid var(--line); border-radius:12px; color:#ddd; font-weight:700; }
+.grid-month{
+  border:1px solid var(--line); border-radius:14px; overflow:hidden;
+}
+.grid-month .dow{
+  display:grid; grid-template-columns: repeat(7,1fr);
+  background:#fff; color:#4a3bb8; font-weight:900; letter-spacing:.4px;
+}
+.grid-month .dow div{ padding:10px 8px; text-align:center; border-right:1px solid #eee2; }
+.grid-month .days{
+  display:grid; grid-template-columns: repeat(7,1fr);
+}
+.day{
+  min-height:102px; border-right:1px solid var(--line); border-top:1px solid var(--line);
+  padding:8px; position:relative;
+}
+.day .num{ position:absolute; top:8px; right:10px; font-weight:800; color:#b9b5d6; font-size:12px; }
+.badge{ display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:999px; font-size:12px; font-weight:800; }
+.badge.purple{ background: #6b49ff22; color:#c7b8ff; border:1px solid #7356ff66; }
+
+/* ======= Listas ======= */
+.list{ display:flex; flex-direction:column; gap:8px; }
+.item{
+  display:flex; align-items:center; gap:12px; justify-content:space-between;
+  background: var(--panel-2); border:1px solid var(--line); padding:12px; border-radius:12px;
+}
+.item-left{ display:flex; align-items:center; gap:10px; color:#e8e6ff; }
+.item small{ color:var(--muted); }
+
+/* ======= Chart mínimo ======= */
+.chart{
+  height:280px; position:relative; border:1px dashed var(--line); border-radius:12px; overflow:hidden;
+}
+.chart canvas{ width:100%; height:100%; }
+
+/* ======= Imagen del gato ======= */
+.cat-wrap{
+  display:flex; align-items:center; justify-content:center; height:100%;
+}
+.cat-wrap img{ width: 86%; max-width: 360px; height:auto; display:block; filter: drop-shadow(0 8px 26px rgba(0,0,0,.35)); }
+
+/* inputs en línea */
+.inline{ display:grid; grid-template-columns: 1fr 120px 130px; gap:10px; }
+@media (max-width:720px){ .inline{ grid-template-columns: 1fr; } }
+
+/* separadores */
+.mt-12{ margin-top:12px; } .mt-16{ margin-top:16px; } .mt-24{ margin-top:24px; }
+.mb-12{ margin-bottom:12px; } .mb-16{ margin-bottom:16px; } .mb-24{ margin-bottom:24px; }
+.pl-0{ padding-left:0!important; } .pr-0{ padding-right:0!important; }
