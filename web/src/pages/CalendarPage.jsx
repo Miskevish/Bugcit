@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { store } from "../data/events";
+import { api } from "../api";
 
 /* ================= helpers ================= */
 function ymd(dateLike) {
@@ -14,8 +14,6 @@ function useMonth(date, weekStart = "sun") {
   const m = date.getMonth();
   const first = new Date(y, m, 1);
   const dow = first.getDay(); // 0=Sun..6=Sat
-
-  // If week starts on Monday, shift: Mon=0..Sun=6
   const startDow = weekStart === "mon" ? (dow + 6) % 7 : dow;
 
   const days = [];
@@ -30,15 +28,30 @@ function useMonth(date, weekStart = "sun") {
 /* ================= page ================= */
 export default function CalendarPage() {
   // === IMPORTANT: keep "sun" to match dashboard (Sunday-first)
-  const WEEK_START = "sun"; // change to "mon" if you ever need Monday-first
+  const WEEK_START = "sun";
   const DOW =
     WEEK_START === "mon"
       ? ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
       : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   const [cursor, setCursor] = useState(new Date());
-  const [events, setEvents] = useState(store.getEvents());
-  useEffect(() => store.setEvents(events), [events]);
+  const [events, setEvents] = useState([]); // {_id,title,start|date}
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const list = await api.listEvents();
+        setEvents(list);
+      } catch (e) {
+        setErr(e.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   const { y, m, days } = useMonth(cursor, WEEK_START);
   const ymLabel = cursor.toLocaleDateString("es-AR", {
@@ -68,43 +81,49 @@ export default function CalendarPage() {
     setModal({ mode: "edit", event: ev });
   };
   const close = () => setModal(null);
-  const save = () => {
+
+  const save = async () => {
     if (!title.trim()) return;
     if (modal.mode === "create") {
-      setEvents([
-        ...events,
-        { id: crypto.randomUUID(), title: title.trim(), date: modal.date },
-      ]);
+      const saved = await api.addEvent({
+        title: title.trim(),
+        start: modal.date,
+        allDay: true,
+      });
+      setEvents((s) => [...s, saved]);
     } else {
-      setEvents(
-        events.map((e) =>
-          e.id === modal.event.id ? { ...e, title: title.trim() } : e
-        )
-      );
+      const ev = modal.event;
+      const upd = await api.updEvent(ev._id, { title: title.trim() });
+      setEvents((s) => s.map((e) => (e._id === upd._id ? upd : e)));
     }
     close();
   };
-  const remove = () => {
+
+  const remove = async () => {
     if (!modal?.event) return;
-    setEvents(events.filter((e) => e.id !== modal.event.id));
+    await api.delEvent(modal.event._id);
+    setEvents((s) => s.filter((e) => e._id !== modal.event._id));
     close();
   };
 
   // agenda del mes en CARDS
   const monthAgenda = useMemo(() => {
     const inMonth = events.filter((e) => {
-      const d = new Date(e.date);
+      const d = new Date(e.date || e.start);
       return d.getMonth() === m && d.getFullYear() === y;
     });
-    return inMonth.sort((a, b) => +new Date(a.date) - +new Date(b.date));
+    return inMonth.sort(
+      (a, b) => +new Date(a.date || a.start) - +new Date(b.date || b.start)
+    );
   }, [events, y, m]);
 
   return (
     <>
       <h1 style={{ margin: "0 0 10px" }}>Calendario</h1>
+      {err && <div style={{ color: "#ff9a9a" }}>Error: {err}</div>}
 
       <div className="row grid-2">
-        {/* === CALENDARIO (mismo look que el dashboard) === */}
+        {/* === CALENDARIO === */}
         <div className="card-bugcit">
           <div
             className="card-head"
@@ -156,18 +175,17 @@ export default function CalendarPage() {
                       className="day"
                       style={{ opacity: inMonth ? 1 : 0.35, cursor: "pointer" }}
                       onClick={(e) => {
-                        if (e.target.dataset.ev) return; // no interferir con el chip
+                        if (e.target.dataset.ev) return;
                         openCreate(dateISO);
                       }}
                       title={inMonth ? "Crear/Ver eventos" : undefined}
                     >
                       <div className="num">{d.getDate()}</div>
 
-                      {/* chips como en el dashboard (máx 2 visibles) */}
                       <div style={{ display: "grid", gap: 6, marginTop: 18 }}>
                         {todays.slice(0, 2).map((ev) => (
                           <span
-                            key={ev.id}
+                            key={ev._id}
                             data-ev
                             className="badge purple"
                             style={{ justifySelf: "start" }}
@@ -189,11 +207,17 @@ export default function CalendarPage() {
                   );
                 })}
               </div>
+
+              {loading && (
+                <div className="text-muted" style={{ marginTop: 8 }}>
+                  Cargando eventos…
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* === AGENDA en CARDS con botones abajo === */}
+        {/* === AGENDA === */}
         <div className="card-bugcit">
           <div className="card-head">Agenda</div>
           <div className="card-body">
@@ -203,10 +227,10 @@ export default function CalendarPage() {
 
             <div className="agenda-cards">
               {monthAgenda.map((ev) => (
-                <div key={ev.id} className="card-bugcit agenda-card">
+                <div key={ev._id} className="card-bugcit agenda-card">
                   <div className="card-body">
                     <div className="badge purple" style={{ marginBottom: 8 }}>
-                      {new Date(ev.date).toLocaleDateString()}
+                      {new Date(ev.date || ev.start).toLocaleDateString()}
                     </div>
                     <div className="agenda-card-title">{ev.title}</div>
                   </div>
@@ -219,9 +243,10 @@ export default function CalendarPage() {
                     </button>
                     <button
                       className="btn danger"
-                      onClick={() =>
-                        setEvents(events.filter((x) => x.id !== ev.id))
-                      }
+                      onClick={async () => {
+                        await api.delEvent(ev._id);
+                        setEvents((s) => s.filter((x) => x._id !== ev._id));
+                      }}
                     >
                       Eliminar
                     </button>
