@@ -1,6 +1,5 @@
-// src/pages/DashboardPage.jsx
 import React, { useMemo, useState, useEffect } from "react";
-import { store } from "../data/events";
+import { api } from "../api";
 import catImg from "../assets/bugcit.png";
 
 /* ================== helpers de fechas ================== */
@@ -22,74 +21,36 @@ function useMonth(date) {
   }
   return { y, m, days };
 }
-/* ========= fallback para leer eventos si el store no los expone ========= */
-function loadEventsFallback() {
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      const raw = localStorage.getItem(k);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) continue;
-      const list = parsed
-        .map((e, idx) => {
-          const start = e.start || e.date;
-          const title = e.title || e.name || e.titulo;
-          if (!start || !title) return null;
-          return { id: e.id ?? `${k}-${idx}`, title, date: ymd(start) };
-        })
-        .filter(Boolean);
-      if (list.length) return list;
-    }
-  } catch {}
-  return [];
-}
 
 export default function DashboardPage() {
   const [cursor, setCursor] = useState(new Date());
 
-  // === datos del store
-  const [notes, setNotes] = useState(store.getNotes());
-  const [tasks, setTasks] = useState(store.getTasks());
-  const [learning, setLearning] = useState(store.getLearning());
+  // ===== datos desde API
+  const [notes, setNotes] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [learning, setLearning] = useState([]);
+  const [events, setEvents] = useState([]);
 
   useEffect(() => {
-    store.setNotes(notes);
-  }, [notes]);
-  useEffect(() => {
-    store.setTasks(tasks);
-  }, [tasks]);
-  useEffect(() => {
-    store.setLearning(learning);
-  }, [learning]);
-
-  // === eventos para el calendario del dashboard
-  const [events, setEvents] = useState(
-    typeof store.getEvents === "function"
-      ? store.getEvents()
-      : loadEventsFallback()
-  );
-  useEffect(() => {
-    const reload = () => {
-      setEvents(
-        typeof store.getEvents === "function"
-          ? store.getEvents()
-          : loadEventsFallback()
-      );
-    };
-    window.addEventListener("focus", reload);
-    window.addEventListener("storage", reload);
-    return () => {
-      window.removeEventListener("focus", reload);
-      window.removeEventListener("storage", reload);
-    };
+    (async () => {
+      const [n, t, l, e] = await Promise.all([
+        api.listNotes(),
+        api.listTasks(),
+        api.listLearning(),
+        api.listEvents(),
+      ]);
+      setNotes(n);
+      setTasks(t);
+      setLearning(l);
+      setEvents(e);
+    })();
   }, []);
 
   // agrupar eventos por día
   const eventsByDay = useMemo(() => {
     const map = new Map();
     for (const ev of events || []) {
-      const key = ymd(ev.date || ev.start || ev.when);
+      const key = ymd(ev.date || ev.start);
       if (!map.has(key)) map.set(key, []);
       map.get(key).push(ev);
     }
@@ -116,16 +77,15 @@ export default function DashboardPage() {
     [learning]
   );
 
-  const finishTimer = () => {
+  const finishTimer = async () => {
     if (timer <= 0) return;
     const hours = +(timer / 3600).toFixed(2);
-    const entry = {
-      id: crypto.randomUUID(),
+    const entry = await api.addLearning({
       topic: "Sesión rápida",
       date: new Date().toISOString(),
       hours,
-    };
-    setLearning([...learning, entry]);
+    });
+    setLearning((s) => [...s, entry]);
     setTimer(0);
     setRunning(false);
   };
@@ -140,10 +100,12 @@ export default function DashboardPage() {
 
   // ===== Tareas (nuevo título controlado)
   const [newTask, setNewTask] = useState("");
-  const handleAddTask = () => {
+
+  const handleAddTask = async () => {
     const v = newTask.trim();
     if (!v) return;
-    setTasks([{ id: crypto.randomUUID(), title: v, done: false }, ...tasks]);
+    const saved = await api.addTask(v);
+    setTasks((s) => [saved, ...s]);
     setNewTask("");
   };
 
@@ -210,7 +172,7 @@ export default function DashboardPage() {
                       <div style={{ display: "grid", gap: 6, marginTop: 18 }}>
                         {dayEvents.slice(0, 2).map((ev) => (
                           <span
-                            key={ev.id}
+                            key={ev._id}
                             className="badge purple"
                             style={{ justifySelf: "start" }}
                             onClick={(e) => {
@@ -263,16 +225,10 @@ export default function DashboardPage() {
             <div className="mt-12" />
             <button
               className="btn brand"
-              onClick={() => {
+              onClick={async () => {
                 if (!noteText.trim()) return;
-                setNotes([
-                  {
-                    id: crypto.randomUUID(),
-                    text: noteText.trim(),
-                    date: new Date().toISOString(),
-                  },
-                  ...notes,
-                ]);
+                const saved = await api.addNote(noteText.trim());
+                setNotes((s) => [saved, ...s]);
                 setNoteText("");
               }}
             >
@@ -286,7 +242,7 @@ export default function DashboardPage() {
               )}
               {notes.map((n) => (
                 <div
-                  key={n.id}
+                  key={n._id}
                   className="item"
                   style={{ alignItems: "flex-start" }}
                 >
@@ -308,20 +264,19 @@ export default function DashboardPage() {
                       {n.text}
                     </div>
                     <small style={{ opacity: 0.8 }}>
-                      {new Date(n.date).toLocaleDateString()}
+                      {new Date(n.date || n.createdAt).toLocaleDateString()}
                     </small>
                   </div>
 
                   <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                     <button
                       className="btn ghost"
-                      onClick={() => {
+                      onClick={async () => {
                         const t = prompt("Editar nota:", n.text);
                         if (t === null) return;
-                        setNotes(
-                          notes.map((x) =>
-                            x.id === n.id ? { ...x, text: t } : x
-                          )
+                        const upd = await api.editNote(n._id, t);
+                        setNotes((s) =>
+                          s.map((x) => (x._id === upd._id ? upd : x))
                         );
                       }}
                     >
@@ -329,9 +284,10 @@ export default function DashboardPage() {
                     </button>
                     <button
                       className="btn danger"
-                      onClick={() =>
-                        setNotes(notes.filter((x) => x.id !== n.id))
-                      }
+                      onClick={async () => {
+                        await api.delNote(n._id);
+                        setNotes((s) => s.filter((x) => x._id !== n._id));
+                      }}
                     >
                       Eliminar
                     </button>
@@ -348,11 +304,10 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ===== Tareas (cards responsivas) ===== */}
+        {/* ===== Tareas ===== */}
         <div className="card-bugcit">
           <div className="card-head">Tareas</div>
           <div className="card-body">
-            {/* Formulario para crear */}
             <div className="task-new inline" style={{ marginBottom: 12 }}>
               <input
                 className="input"
@@ -370,21 +325,21 @@ export default function DashboardPage() {
 
             {tasks.length === 0 && <div className="text-muted">Sin tareas</div>}
 
-            {/* Grid de cards */}
             <div className="task-cards">
               {tasks.map((t) => (
-                <div key={t.id} className="task-card">
+                <div key={t._id} className="task-card">
                   <label className="task-check">
                     <input
                       type="checkbox"
                       checked={!!t.done}
-                      onChange={(e) =>
-                        setTasks(
-                          tasks.map((x) =>
-                            x.id === t.id ? { ...x, done: e.target.checked } : x
-                          )
-                        )
-                      }
+                      onChange={async (e) => {
+                        const upd = await api.updTask(t._id, {
+                          done: e.target.checked,
+                        });
+                        setTasks((s) =>
+                          s.map((x) => (x._id === upd._id ? upd : x))
+                        );
+                      }}
                     />
                     <span
                       className="task-title"
@@ -399,13 +354,12 @@ export default function DashboardPage() {
                   <div className="task-footer">
                     <button
                       className="btn ghost"
-                      onClick={() => {
+                      onClick={async () => {
                         const v = prompt("Editar tarea:", t.title);
                         if (v === null) return;
-                        setTasks(
-                          tasks.map((x) =>
-                            x.id === t.id ? { ...x, title: v } : x
-                          )
+                        const upd = await api.updTask(t._id, { title: v });
+                        setTasks((s) =>
+                          s.map((x) => (x._id === upd._id ? upd : x))
                         );
                       }}
                     >
@@ -413,9 +367,10 @@ export default function DashboardPage() {
                     </button>
                     <button
                       className="btn danger"
-                      onClick={() =>
-                        setTasks(tasks.filter((x) => x.id !== t.id))
-                      }
+                      onClick={async () => {
+                        await api.delTask(t._id);
+                        setTasks((s) => s.filter((x) => x._id !== t._id));
+                      }}
                     >
                       Eliminar
                     </button>
@@ -424,7 +379,6 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-          {/* 👇 IMPORTANTE: ya NO hay otro card-footer con otro input */}
         </div>
 
         {/* ===== Aprendizaje ===== */}
