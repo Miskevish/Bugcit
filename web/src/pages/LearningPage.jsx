@@ -1,13 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { store } from "../data/events";
+import { api } from "../api";
 
 const fmtDate = (d) => new Date(d).toLocaleDateString();
 
 export default function LearningPage() {
-  const [items, setItems] = useState(store.getLearning()); // {id, topic, hours, date}
+  const [items, setItems] = useState([]); // {_id, topic, hours, date}
   const [topic, setTopic] = useState("");
   const [hours, setHours] = useState("");
-  useEffect(() => store.setLearning(items), [items]);
+
+  useEffect(() => {
+    api.listLearning().then(setItems);
+  }, []);
 
   const total = useMemo(
     () => items.reduce((a, x) => a + (x.hours || 0), 0),
@@ -25,16 +28,15 @@ export default function LearningPage() {
     return () => clearInterval(id);
   }, [running]);
 
-  const saveTick = () => {
+  const saveTick = async () => {
     if (ticking <= 0 || !currentTopic) return;
     const h = +(ticking / 3600).toFixed(2);
-    const entry = {
-      id: crypto.randomUUID(),
+    const entry = await api.addLearning({
       topic: currentTopic,
       hours: h,
       date: new Date().toISOString(),
-    };
-    setItems([entry, ...items]);
+    });
+    setItems((s) => [entry, ...s]);
     setTicking(0);
     setRunning(false);
     setCurrentTopic("");
@@ -50,15 +52,13 @@ export default function LearningPage() {
       H = (cvs.height = cvs.clientHeight);
     ctx.clearRect(0, 0, W, H);
     if (items.length === 0) return;
-    // acumulado por fecha
     const byDay = {};
     items.forEach((i) => {
       const k = new Date(i.date).toISOString().slice(0, 10);
       byDay[k] = (byDay[k] || 0) + i.hours;
     });
     const keys = Object.keys(byDay).sort();
-    const vals = keys.map((k) => byDay[k]);
-    const max = Math.max(...vals, 1);
+    const max = Math.max(...keys.map((k) => byDay[k]), 1);
     const pad = 24;
     ctx.strokeStyle = "#9c6bff";
     ctx.lineWidth = 3;
@@ -70,7 +70,6 @@ export default function LearningPage() {
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
-    // puntos
     ctx.fillStyle = "#e5d9ff";
     keys.forEach((k, i) => {
       const x = pad + (W - 2 * pad) * (i / (keys.length - 1 || 1));
@@ -104,18 +103,15 @@ export default function LearningPage() {
               />
               <button
                 className="btn brand"
-                onClick={() => {
+                onClick={async () => {
                   const h = parseFloat(hours);
                   if (!topic.trim() || isNaN(h) || h <= 0) return;
-                  setItems([
-                    {
-                      id: crypto.randomUUID(),
-                      topic: topic.trim(),
-                      hours: h,
-                      date: new Date().toISOString(),
-                    },
-                    ...items,
-                  ]);
+                  const saved = await api.addLearning({
+                    topic: topic.trim(),
+                    hours: h,
+                    date: new Date().toISOString(),
+                  });
+                  setItems((s) => [saved, ...s]);
                   setTopic("");
                   setHours("");
                 }}
@@ -139,7 +135,6 @@ export default function LearningPage() {
                 onChange={(e) => setCurrentTopic(e.target.value)}
               >
                 <option value="">— Selecciona tema para cronómetro —</option>
-                {/* Lista de temas existentes (únicos) */}
                 {[...new Set(items.map((i) => i.topic))].map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -172,7 +167,7 @@ export default function LearningPage() {
                 <div style={{ opacity: 0.6 }}>Sin registros</div>
               )}
               {items.map((it) => (
-                <div key={it.id} className="item">
+                <div key={it._id} className="item">
                   <div className="item-left">
                     <div style={{ fontWeight: 800 }}>{it.topic}</div>
                     <small>
@@ -182,27 +177,35 @@ export default function LearningPage() {
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
                       className="btn ghost"
-                      onClick={() => {
+                      onClick={async () => {
                         const t = prompt("Tema:", it.topic);
                         if (t === null) return;
                         const h = prompt("Horas:", String(it.hours));
                         if (h === null) return;
                         const num = parseFloat(h);
                         if (isNaN(num) || num <= 0) return;
-                        setItems(
-                          items.map((x) =>
-                            x.id === it.id ? { ...x, topic: t, hours: num } : x
-                          )
-                        );
+                        // si quieres PUT, puedes crear un endpoint /learning/:id
+                        // aquí lo hacemos de forma simple: eliminar + crear
+                        await api.delLearning?.(it._id); // si implementas DELETE
+                        const saved = await api.addLearning({
+                          topic: t,
+                          hours: num,
+                          date: it.date,
+                        });
+                        setItems((s) => [
+                          saved,
+                          ...s.filter((x) => x._id !== it._id),
+                        ]);
                       }}
                     >
                       Editar
                     </button>
                     <button
                       className="btn danger"
-                      onClick={() =>
-                        setItems(items.filter((x) => x.id !== it.id))
-                      }
+                      onClick={async () => {
+                        await api.delLearning?.(it._id); // hazlo no-op si no existe
+                        setItems((s) => s.filter((x) => x._id !== it._id));
+                      }}
                     >
                       Eliminar
                     </button>
