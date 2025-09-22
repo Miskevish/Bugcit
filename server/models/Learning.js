@@ -1,10 +1,19 @@
 import mongoose from "mongoose";
-const learningSchema = new mongoose.Schema(
+const { Schema } = mongoose;
+
+const learningSchema = new Schema(
   {
-    topic: { type: String, default: "Sesión rápida" },
+    user: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    title: { type: String, default: "Sesión rápida" },
+    minutes: { type: Number, default: 0 },
     date: { type: Date, default: Date.now },
-    hours: { type: Number, required: true }, // ej: 1.5
   },
   { timestamps: true }
 );
+
 export default mongoose.model("Learning", learningSchema);

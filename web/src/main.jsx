@@ -5,10 +5,16 @@ import App from "./App.jsx";
 import "./styles/bugcit.css";
 import "./styles/theme.css";
 
+// Import nombrado del provider
+import { AuthProvider } from "./contexts/AuthContext.jsx";
+
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      {/* El provider debe estar DENTRO del Router para usar useNavigate */}
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
 );
