@@ -1,16 +1,17 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
-import User from "../models/User.js";
 import bcrypt from "bcryptjs";
+import User from "../models/User.js";
+import auth from "../middleware/auth.js";
 
 const router = Router();
 
-// Opciones de cookie consistentes para set y clear
+// Opciones de cookie consistentes
 const cookieOptionsBase = {
   httpOnly: true,
   sameSite: "lax",
-  secure: process.env.COOKIE_SECURE === "true", // en dev = false
-  path: "/", // MUY importante para clear
+  secure: process.env.COOKIE_SECURE === "true",
+  path: "/",
   ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
 };
 
@@ -23,7 +24,7 @@ function sendToken(res, user, status = 200) {
   res
     .cookie("token", token, {
       ...cookieOptionsBase,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     })
     .status(status)
     .json({ user: payload });
@@ -39,14 +40,12 @@ router.post("/register", async (req, res) => {
     const password =
       typeof body.password === "string" ? body.password : undefined;
 
-    if (!email || !password) {
+    if (!email || !password)
       return res.status(400).json({ error: "Email y password requeridos." });
-    }
-    if (password.length < 6) {
+    if (password.length < 6)
       return res
         .status(400)
         .json({ error: "La contraseña debe tener al menos 6 caracteres." });
-    }
 
     const exists = await User.findOne({ email });
     if (exists)
@@ -69,11 +68,9 @@ router.post("/login", async (req, res) => {
     const password =
       typeof body.password === "string" ? body.password : undefined;
 
-    if (!email || !password) {
+    if (!email || !password)
       return res.status(400).json({ error: "Email y password requeridos." });
-    }
 
-    // traer hash explicitamente
     const user = await User.findOne({ email }).select("+password");
     if (!user)
       return res.status(401).json({ error: "Credenciales inválidas." });
@@ -89,8 +86,7 @@ router.post("/login", async (req, res) => {
 });
 
 // ---------- LOGOUT ----------
-router.post("/logout", (req, res) => {
-  // Limpiar con EXACTAMENTE las mismas opciones (path/domain/secure/samesite)
+router.post("/logout", (_req, res) => {
   res.clearCookie("token", cookieOptionsBase);
   res.status(200).json({ ok: true });
 });
@@ -110,6 +106,82 @@ router.get("/me", (req, res) => {
     });
   } catch {
     return res.json({ user: null });
+  }
+});
+
+// ---------- EDITAR PERFIL (nombre/email) ----------
+router.patch("/profile", auth, async (req, res) => {
+  try {
+    const { name, email } = req.body || {};
+
+    // Normalizar
+    const updates = {};
+    if (typeof name === "string") updates.name = name.trim();
+    if (typeof email === "string") updates.email = email.trim().toLowerCase();
+
+    if (!updates.name && !updates.email) {
+      return res.status(400).json({ error: "Nada para actualizar." });
+    }
+
+    // Si cambia email, verificar unicidad
+    if (updates.email) {
+      const clash = await User.findOne({
+        email: updates.email,
+        _id: { $ne: req.user.id },
+      });
+      if (clash)
+        return res.status(409).json({ error: "Ese email ya está en uso." });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: updates },
+      { new: true }
+    );
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    // Reemitir token con los nuevos datos para que /auth/me refleje cambios
+    sendToken(res, user, 200);
+  } catch (e) {
+    console.error("Profile update error:", e);
+    res.status(500).json({ error: "No se pudo actualizar el perfil." });
+  }
+});
+
+// ---------- CAMBIAR CONTRASEÑA ----------
+router.patch("/password", auth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ error: "Contraseña actual y nueva son requeridas." });
+    }
+    if (newPassword.length < 6) {
+      return res
+        .status(400)
+        .json({
+          error: "La nueva contraseña debe tener al menos 6 caracteres.",
+        });
+    }
+
+    const user = await User.findById(req.user.id).select("+password");
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    const ok = await bcrypt.compare(currentPassword, user.password);
+    if (!ok)
+      return res
+        .status(401)
+        .json({ error: "La contraseña actual es incorrecta." });
+
+    user.password = newPassword; // el pre('save') hashea
+    await user.save();
+
+    // No es necesario reemitir token (no cambió nombre/email), pero válido
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Password change error:", e);
+    res.status(500).json({ error: "No se pudo cambiar la contraseña." });
   }
 });
 

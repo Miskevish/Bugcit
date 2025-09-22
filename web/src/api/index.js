@@ -6,7 +6,8 @@ const j = async (r) => {
     let msg = `${r.status} ${r.statusText}`;
     try {
       const data = await r.json();
-      if (data?.message) msg = data.message;
+      if (data?.error) msg = data.error; // preferimos 'error' del backend
+      else if (data?.message) msg = data.message;
     } catch {}
     throw new Error(msg);
   }
@@ -121,5 +122,22 @@ export const auth = {
     fetch(`${BASE}/auth/logout`, {
       method: "POST",
       credentials: "include",
+    }).then(j),
+
+  // ===== Perfil =====
+  updateProfile: (payload) =>
+    fetch(`${BASE}/auth/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    }).then(j),
+
+  changePassword: (payload) =>
+    fetch(`${BASE}/auth/password`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
     }).then(j),
 };
