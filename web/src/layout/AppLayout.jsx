@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext.jsx";
 
 function MenuIcon() {
   return (
@@ -23,10 +24,10 @@ function MenuIcon() {
 
 export default function AppLayout() {
   const [open, setOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   return (
     <div className="app-wrap">
-      {/* Drawer backdrop (solo móvil) */}
       {open && (
         <div className="drawer-backdrop" onClick={() => setOpen(false)} />
       )}
@@ -73,7 +74,7 @@ export default function AppLayout() {
           </NavLink>
         </nav>
 
-        <div className="sidebar-footer">
+        <div className="sidebar-footer" style={{ display: "grid", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div
               style={{
@@ -88,16 +89,23 @@ export default function AppLayout() {
               B
             </div>
             <div>
-              <div style={{ fontWeight: 800 }}>Cuenta</div>
-              <div style={{ opacity: 0.7, fontSize: 12 }}>@usuario</div>
+              <div style={{ fontWeight: 800 }}>{user?.name || "Cuenta"}</div>
+              <div style={{ opacity: 0.7, fontSize: 12 }}>
+                {user?.email ? `@${user.email}` : "@usuario"}
+              </div>
             </div>
           </div>
+
+          {/* Botón de cerrar sesión siempre visible */}
+          <button className="btn-ghost" onClick={logout}>
+            Cerrar sesión
+          </button>
         </div>
       </aside>
 
       {/* CONTENIDO */}
       <main className="app-content">
-        {/* Topbar móvil (escritorio no se muestra) */}
+        {/* Topbar móvil */}
         <div className="topbar">
           <button
             className="btn-ghost"

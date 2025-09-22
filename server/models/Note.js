@@ -1,9 +1,17 @@
 import mongoose from "mongoose";
-const noteSchema = new mongoose.Schema(
+const { Schema } = mongoose;
+
+const noteSchema = new Schema(
   {
-    text: { type: String, required: true },
-    date: { type: Date, default: Date.now },
+    user: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    text: { type: String, required: true, trim: true },
   },
   { timestamps: true }
 );
+
 export default mongoose.model("Note", noteSchema);
