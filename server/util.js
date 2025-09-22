@@ -1,10 +1,9 @@
-export function parseListQuery(q = {}) {
-  const page = Math.max(parseInt(q.page ?? "1", 10) || 1, 1);
-  const pageSize = Math.min(
-    Math.max(parseInt(q.pageSize ?? "10", 10) || 10, 1),
-    100
-  );
-  const order = q.order === "DESC" ? -1 : 1;
-  const offset = (page - 1) * pageSize;
-  return { page, pageSize, order, offset };
-}
+// server/util.js
+import rateLimit from "express-rate-limit";
+
+export const chatBurstLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 20, // 20 mensajes por minuto por IP
+  standardHeaders: true,
+  legacyHeaders: false,
+});

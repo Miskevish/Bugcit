@@ -1,5 +1,6 @@
 import { Router } from "express";
 import Task from "../models/Task.js";
+
 const router = Router();
 
 router.get("/", async (_req, res) =>
