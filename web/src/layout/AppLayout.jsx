@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext.jsx";
+import ProfileModal from "../components/ProfileModal.jsx";
 
 function MenuIcon() {
   return (
@@ -24,6 +25,7 @@ function MenuIcon() {
 
 export default function AppLayout() {
   const [open, setOpen] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const { user, logout } = useAuth();
 
   return (
@@ -32,7 +34,6 @@ export default function AppLayout() {
         <div className="drawer-backdrop" onClick={() => setOpen(false)} />
       )}
 
-      {/* SIDEBAR */}
       <aside className={`sidebar ${open ? "open" : ""}`}>
         <div className="brand">BUGCIT</div>
 
@@ -75,37 +76,28 @@ export default function AppLayout() {
         </nav>
 
         <div className="sidebar-footer" style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 12,
-                display: "grid",
-                placeItems: "center",
-                background: "#2a215f",
-              }}
-            >
-              B
-            </div>
-            <div>
-              <div style={{ fontWeight: 800 }}>{user?.name || "Cuenta"}</div>
-              <div style={{ opacity: 0.7, fontSize: 12 }}>
+          {/* BLOQUE DE CUENTA — ahora es clickeable para editar */}
+          <button
+            className="account-block"
+            onClick={() => setShowProfile(true)}
+            title="Editar perfil"
+          >
+            <div className="account-avatar">B</div>
+            <div className="account-info">
+              <div className="account-name">{user?.name || "Cuenta"}</div>
+              <div className="account-email">
                 {user?.email ? `@${user.email}` : "@usuario"}
               </div>
             </div>
-          </div>
+          </button>
 
-          {/* Botón de cerrar sesión siempre visible */}
           <button className="btn-ghost" onClick={logout}>
             Cerrar sesión
           </button>
         </div>
       </aside>
 
-      {/* CONTENIDO */}
       <main className="app-content">
-        {/* Topbar móvil */}
         <div className="topbar">
           <button
             className="btn-ghost"
@@ -122,6 +114,9 @@ export default function AppLayout() {
           <Outlet />
         </div>
       </main>
+
+      {/* Modal de Perfil */}
+      <ProfileModal open={showProfile} onClose={() => setShowProfile(false)} />
     </div>
   );
 }

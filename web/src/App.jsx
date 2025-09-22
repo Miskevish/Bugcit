@@ -11,11 +11,11 @@ import LearningPage from "./pages/LearningPage";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
+import Profile from "./pages/Profile.jsx";
 
 export default function App() {
   return (
     <Routes>
-      {/* Área protegida (requiere sesión) */}
       <Route
         element={
           <ProtectedRoute>
@@ -29,9 +29,9 @@ export default function App() {
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/learning" element={<LearningPage />} />
+        <Route path="/profile" element={<Profile />} />
       </Route>
 
-      {/* Público */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 

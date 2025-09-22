@@ -46,12 +46,32 @@ export const AuthProvider = ({ children }) => {
       await auth.logout();
     } catch {}
     setUser(null);
-    // Enviar a /login y evitar volver con el back
     navigate("/login", { replace: true });
   };
 
+  const updateProfile = async (payload) => {
+    const res = await auth.updateProfile(payload);
+    // el backend re-emite cookie y devuelve user actualizado
+    setUser(res?.user || null);
+    return res?.user || null;
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    await auth.changePassword({ currentPassword, newPassword });
+    return true;
+  };
+
   const value = useMemo(
-    () => ({ user, loading, login, register, logout, isAuth: !!user }),
+    () => ({
+      user,
+      loading,
+      isAuth: !!user,
+      login,
+      register,
+      logout,
+      updateProfile,
+      changePassword,
+    }),
     [user, loading]
   );
 
