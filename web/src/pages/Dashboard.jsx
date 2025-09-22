@@ -1,6 +1,7 @@
-import React, { useMemo, useState, useEffect } from "react";
+// src/pages/Dashboard.jsx
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { api } from "../api";
-import catImg from "../assets/bugcit.png";
+import ChatCat from "../components/ChatCat.jsx";
 
 /* ================== helpers de fechas ================== */
 function ymd(dateLike) {
@@ -31,20 +32,22 @@ export default function DashboardPage() {
   const [learning, setLearning] = useState([]);
   const [events, setEvents] = useState([]);
 
-  useEffect(() => {
-    (async () => {
-      const [n, t, l, e] = await Promise.all([
-        api.listNotes(),
-        api.listTasks(),
-        api.listLearning(),
-        api.listEvents(),
-      ]);
-      setNotes(n);
-      setTasks(t);
-      setLearning(l);
-      setEvents(e);
-    })();
+  const loadAll = useCallback(async () => {
+    const [n, t, l, e] = await Promise.all([
+      api.listNotes(),
+      api.listTasks(),
+      api.listLearning(),
+      api.listEvents(),
+    ]);
+    setNotes(n);
+    setTasks(t);
+    setLearning(l);
+    setEvents(e);
   }, []);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   // agrupar eventos por día
   const eventsByDay = useMemo(() => {
@@ -109,11 +112,79 @@ export default function DashboardPage() {
     setNewTask("");
   };
 
+  /* ====== Acciones que puede disparar el bot ======
+     ChatCat llamará onAction({ type, payload }) con alguno de:
+     - { type: "create_task", payload: { title } }
+     - { type: "create_note", payload: { text } }
+     - { type: "create_event", payload: { title, date, start, end } }
+     - { type: "refresh" }  -> recarga contadores/listas
+     - { type: "notify", payload: { message } } -> notificación del navegador
+  */
+  const handleBotAction = useCallback(
+    async (action) => {
+      try {
+        switch (action?.type) {
+          case "create_task": {
+            const title = String(action.payload?.title || "").trim();
+            if (!title) break;
+            const saved = await api.addTask(title);
+            setTasks((s) => [saved, ...s]);
+            break;
+          }
+          case "create_note": {
+            const text = String(action.payload?.text || "").trim();
+            if (!text) break;
+            const saved = await api.addNote(text);
+            setNotes((s) => [saved, ...s]);
+            break;
+          }
+          case "create_event": {
+            const now = new Date();
+            const fallbackDate = ymd(now);
+            const payload = action.payload || {};
+            const data = {
+              title: String(payload.title || "Evento").slice(0, 140),
+              // si viene date lo usamos, si no hoy
+              date: payload.date || fallbackDate,
+              start: payload.start || `${fallbackDate}T09:00:00`,
+              end: payload.end || `${fallbackDate}T10:00:00`,
+            };
+            const saved = await api.addEvent(data);
+            setEvents((s) => [saved, ...s]);
+            break;
+          }
+          case "refresh": {
+            await loadAll();
+            break;
+          }
+          case "notify": {
+            const msg = action.payload?.message || "Recordatorio de BUGCIT";
+            if ("Notification" in window) {
+              if (Notification.permission === "granted") {
+                new Notification("BUGCIT", { body: msg });
+              } else if (Notification.permission !== "denied") {
+                const perm = await Notification.requestPermission();
+                if (perm === "granted")
+                  new Notification("BUGCIT", { body: msg });
+              }
+            }
+            break;
+          }
+          default:
+            break;
+        }
+      } catch (e) {
+        console.error("Bot action error:", e);
+      }
+    },
+    [loadAll]
+  );
+
   return (
     <>
       <h1 style={{ margin: "0 0 10px 0" }}>Panel de control</h1>
 
-      {/* fila superior: calendario + gato */}
+      {/* fila superior: calendario + BUGCIT assistant */}
       <div className="row grid-2">
         <div className="card-bugcit">
           <div
@@ -200,12 +271,22 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* 👇 BUGCIT Assistant (chat) */}
         <div className="card-bugcit" style={{ display: "grid" }}>
-          <div className="card-head">
-            Hola, tienes {tasks.length} tareas para hoy
-          </div>
-          <div className="card-body cat-wrap">
-            <img src={catImg} alt="Bugcit Cat" />
+          <div className="card-head">BUGCIT Assistant</div>
+          <div className="card-body" style={{ padding: 0 }}>
+            <ChatCat
+              persistKey="bugcit:chat"
+              title={`Hola, tienes ${tasks.length} ${
+                tasks.length === 1 ? "tarea" : "tareas"
+              }`}
+              counts={{
+                tasks: tasks.length,
+                notes: notes.length,
+                events: events.length,
+              }}
+              onAction={handleBotAction}
+            />
           </div>
         </div>
       </div>
